@@ -1,0 +1,22 @@
+name:                hs-outorg
+version:             0.1.0.0
+synopsis:            Outorg outcommenting without Emacs
+-- description:
+homepage:            https://github.com/jedahu/hs-outorg
+license:             BSD3
+license-file:        LICENSE
+author:              Jeremy Hughes
+maintainer:          jedahu@gmail.com
+-- copyright:
+category:            Text
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+
+executable outorg
+  main-is:             Main.hs
+  -- other-modules:
+  other-extensions:    NoImplicitPrelude, OverloadedStrings
+  build-depends:       base >=4.9 && <4.10, text >=1.2.2 && <1.3
+  -- hs-source-dirs:
+  default-language:    Haskell2010
