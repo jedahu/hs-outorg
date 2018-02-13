@@ -8,12 +8,12 @@
 
 -- Usage:
 -- #+BEGIN_SRC sh :example t
--- outorg language comment-syntax < input > output.org
+-- outorg language comment-syntax [markup] < input > output.org
 -- #+END_SRC
 
 -- E.g. for this file:
 -- #+BEGIN_SRC sh :example t
--- outorg haskell -- < Main.hs > README.org
+-- outorg haskell -- org < Main.hs > README.org
 -- #+END_SRC
 
 -- ** Module setup
@@ -23,7 +23,7 @@
 
 module Main where
 
-import Prelude ((+))
+import Prelude ((+), error)
 import Data.Bool ((||))
 import Data.Eq (Eq, (==), (/=))
 import Data.Functor ((<$>))
@@ -36,7 +36,8 @@ import Data.List
   , length
   , intersect
   )
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe, listToMaybe)
+import Data.Ord ((<), (>))
 import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.IO (interact, putStrLn)
@@ -57,23 +58,41 @@ import System.IO (IO(..))
 
 data Scope = Comment | Code | Blank deriving Eq
 
+data Markup = Org | Md deriving Eq
+
+doc2markup :: Text -> Markup
+doc2markup "org"      = Org
+doc2markup "md"       = Md
+doc2markup "markdown" = Md
+doc2markup x          = error ("Unrecognised markup name " <> T.unpack x)
+
+codeStart :: Markup -> Text -> Text
+codeStart Org lang = "#+BEGIN_SRC " <> lang
+codeStart Md  lang = "``` " <> lang
+
+codeStop :: Markup -> Text
+codeStop Org = "#+END_SRC"
+codeStop Md  = "```"
+
 main :: IO ()
 main = do
   args <- getArgs
-  if intersect args ["-h", "--help"] /= [] || length args /= 2
+  if intersect args ["-h", "--help"] /= [] || length args < 2 || length args > 3
     then printUsage >> exitFailure
-    else let [lang, comment] = args
-         in interact (outcommentOutorg (T.pack lang) (T.pack comment))
+    else let lang : comment : rest = T.pack <$> args
+             doc                   = fromMaybe "org" (listToMaybe rest)
+             markup                = doc2markup doc
+         in interact (outcommentOutorg lang comment markup)
 
 printUsage :: IO ()
 printUsage = do
   putStrLn "usage:"
-  putStrLn "    outorg language comment-syntax < input > output.org"
+  putStrLn "    outorg language comment-syntax [org|md] < input > output.org"
   putStrLn "example:"
-  putStrLn "    outorg javascript // < index.js > README.org"
+  putStrLn "    outorg javascript // org < index.js > README.org"
 
-outcommentOutorg :: Text -> Text -> Text -> Text
-outcommentOutorg lang comment code =
+outcommentOutorg :: Text -> Text -> Markup -> Text -> Text
+outcommentOutorg lang comment markup code =
   T.unlines (dropWhile T.null (wrapBlocks =<< groupedLines))
   where
     groupedLines = unfoldr group (scoped <$> (T.lines code))
@@ -94,11 +113,11 @@ outcommentOutorg lang comment code =
     wrapBlocks []                    = []
     wrapBlocks xs@((Comment, _) : _) = "" : (unscoped <$> (stripBlanks xs))
     wrapBlocks xs@((Code, _) : _)    =
-      ["", "#+BEGIN_SRC " <> lang]
+      ["", codeStart markup lang]
       <>
       (unscoped <$> (stripBlanks xs))
       <>
-      ["#+END_SRC"]
+      [codeStop markup]
 
     unscoped (_, s) = s
 
